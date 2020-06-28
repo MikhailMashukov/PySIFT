@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
 	im = imread(args.input_fname)
 
-	sift_detector = SIFT(im)
+	sift_detector = SIFT(im, num_octave=4, min_keypoints=10)
 	_ = sift_detector.get_features()
 	kp_pyr = sift_detector.kp_pyr
 

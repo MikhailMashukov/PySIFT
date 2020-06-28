@@ -13,9 +13,14 @@ def get_candidate_keypoints(D, w=16):
 	''' End '''
 	
 	# have to start at w//2 so that when getting the local w x w descriptor, we don't fall off
-	for i in range(w//2+1, D.shape[0]-w//2-1):
-		for j in range(w//2+1, D.shape[1]-w//2-1):
-			for k in range(1, D.shape[2]-1): 
+	# for i in range(w//2+1, D.shape[0]-w//2-1):
+		# for j in range(w//2+1, D.shape[1]-w//2-1):
+
+	r = range(w//2+1 + D.shape[0] * 5 // 16, D.shape[0] * 10 // 16 - w//2 - 1)   #d_
+	for i in r:
+		for j in range(w//2+1 + D.shape[0] // 4, D.shape[0] * 7 // 16 - w//2 - 1):
+
+			for k in range(1, D.shape[2]-1):
 				patch = D[i-1:i+2, j-1:j+2, k-1:k+2]
 				if np.argmax(patch) == 13 or np.argmin(patch) == 13:
 					candidates.append([i, j, k])
@@ -43,19 +48,41 @@ def localize_keypoint(D, x, y, s):
 	offset = -LA.inv(HD).dot(J)	# I know you're supposed to do something when an offset dimension is >0.5 but I couldn't get anything to work.
 	return offset, J, HD[:2,:2], x, y, s
 
-def find_keypoints_for_DoG_octave(D, R_th, t_c, w):
+def find_keypoints_for_DoG_octave(D, R_th, t_c, w, min_keypoints):
 	candidates = get_candidate_keypoints(D, w)
 	#print('%d candidate keypoints found' % len(candidates))
 
 	keypoints = []
 
+	# contrasts = []
+	# Hs = []
+	# offsets = []
+	vals = []
 	for i, cand in enumerate(candidates):
-		y, x, s = cand[0], cand[1], cand[2]
-		offset, J, H, x, y, s = localize_keypoint(D, x, y, s)
+		y0, x0, s = cand[0], cand[1], cand[2]
+		offset, J, H, x, y, s = localize_keypoint(D, x0, y0, s)
+			# Currently x, y == x0, y0
+		# offsets.append(offset)
+		# Hs.append(H)
 
 		contrast = D[y,x,s] + .5*J.dot(offset)
-		if abs(contrast) < t_c: continue
+		vals.append((abs(contrast), x, y, offset, J, H, s))
+		# if abs(contrast) < t_c:
+		# 	continue
 
+	vals = np.array(vals)
+	filteredInds = np.where(vals[:, 0] >= t_c)[0]
+	# if i < 100:  #d_
+	print('D %s candidates: %s' % (D.shape, vals[:100, :3]))
+
+	if len(filteredInds) < min_keypoints:
+		sortedByContrastInds = vals[:, 0].argsort(axis=0)
+		filteredInds = sortedByContrastInds[-min_keypoints:]
+	else:
+		filteredInds = filteredInds
+
+	for i in filteredInds:
+		_, x, y, offset, J, H, s = vals[i]
 		w, v = LA.eig(H)
 		r = w[1]/w[0]
 		R = (r+1)**2 / r
@@ -66,13 +93,14 @@ def find_keypoints_for_DoG_octave(D, R_th, t_c, w):
 
 		keypoints.append(kp)
 
-	#print('%d keypoints found' % len(keypoints))
+	print('D %s: %d candidates, %d after filter by t_c, %d keypoints' % \
+		  	(D.shape, len(candidates), len(filteredInds), len(keypoints)))
 	return np.array(keypoints)
 
-def get_keypoints(DoG_pyr, R_th, t_c, w):
+def get_keypoints(DoG_pyr, R_th, t_c, w, min_keypoints):
     kps = []
 
     for D in DoG_pyr:
-        kps.append(find_keypoints_for_DoG_octave(D, R_th, t_c, w))
+        kps.append(find_keypoints_for_DoG_octave(D, R_th, t_c, w, min_keypoints))
 
     return kps
