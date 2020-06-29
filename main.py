@@ -32,6 +32,8 @@ if __name__ == '__main__':
 		ax[i].imshow(im)
 
 		scaled_kps = kp_pyr[i] * (2**i)
-		ax[i].scatter(scaled_kps[:,0], scaled_kps[:,1], c='r', s=2.5)
+		if scaled_kps.shape[0] > 0:
+			ax[i].scatter(scaled_kps[:,0], scaled_kps[:,1], c='r', s=2.5)
 
 	plt.show()
+	pass          # Nice place for breakpoint
