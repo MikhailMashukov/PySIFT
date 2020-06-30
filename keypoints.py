@@ -18,6 +18,18 @@ def dot_app(m0, m1):
 			r[i] = m0[i].dot(m1[i])
 	return r
 
+
+class Min_maxes_i:
+	def __init__(self, D, i):
+		self.kCompMaxs = np.maximum(D[i, :, :-2], D[i, :, 1:-1])
+		self.kCompMaxs = np.maximum(self.kCompMaxs, D[i, :, 2:])
+		self.jkCompMaxs = np.maximum(self.kCompMaxs[:-2, :], self.kCompMaxs[1:-1, :])
+		self.jkCompMaxs = np.maximum(self.jkCompMaxs, self.kCompMaxs[2:, :])
+		self.kCompMins = np.minimum(D[i, :, :-2], D[i, :, 1:-1])
+		self.kCompMins = np.minimum(self.kCompMins, D[i, :, 2:])
+		self.jkCompMins = np.minimum(self.kCompMins[:-2, :], self.kCompMins[1:-1, :])
+		self.jkCompMins = np.minimum(self.jkCompMins, self.kCompMins[2:, :])
+
 def get_candidate_keypoints(D, w=16):
 	candidates = []
 
@@ -28,19 +40,76 @@ def get_candidate_keypoints(D, w=16):
 	D[:,:,0] = 0
 	D[:,:,-1] = 0
 	''' End '''
-	
+
 	# have to start at w//2 so that when getting the local w x w descriptor, we don't fall off
 	# for i in range(w//2+1, D.shape[0]-w//2-1):
 		# for j in range(w//2+1, D.shape[1]-w//2-1):
+	# js = np.arange(w//2+1, D.shape[1] - w//2 - 1)
 
-	r = range(w//2+1 + D.shape[0] * 6 // 16, D.shape[0] * 62 // 160 - w//2 - 1)   #d_
-	for i in r:
-		for j in range(w//2+1 + D.shape[0] // 4, D.shape[0] * 5 // 16 - w//2 - 1):
 
+	startI = w//2+1 + D.shape[0] * 6 // 16       #d_
+	endI = D.shape[0] * 62 // 160 - w//2 - 1
+	js = np.arange(w//2+1 + D.shape[0] // 4, D.shape[0] * 7 // 16 - w//2 - 1)
+
+	iRange = range(startI, endI)
+
+	# js, ks = np.meshgrid(js, np.arange(1, D.shape[2]-1))
+	# for i in r:
+	# 	patches = D[i-1 : i+2, js-1 : js+2, ks-1 : ks+2]
+	# 	maxs = np.argmax(patches, axis=1)
+
+	import datetime
+
+	t0 = datetime.datetime.now()
+	# kCompMaxs = np.maximum(D[:, :, :-2], D[:, :, 1:-1])
+	# kCompMaxs = np.maximum(kCompMaxs, D[:, :, 2:])
+	# ykCompMaxs = np.maximum(kCompMaxs[:, :-2, :], kCompMaxs[:, 1:-1, :])
+	# ykCompMaxs = np.maximum(ykCompMaxs, kCompMaxs[:, 2:, :])
+	minMaxes = [None, Min_maxes_i(D, startI - 1), Min_maxes_i(D, startI)]
+	t1 = datetime.datetime.now()
+	for i in iRange:
+		minMaxes = minMaxes[1:] + [Min_maxes_i(D, i + 1)]
+
+		for j in js:
 			for k in range(1, D.shape[2]-1):
-				patch = D[i-1:i+2, j-1:j+2, k-1:k+2]
-				if np.argmax(patch) == 13 or np.argmin(patch) == 13:
+				# maxs = np.array(list(D[i, j, k-1:k+2]) +             # 2x slower than argmax(patch)
+				# 				[minMaxes[0].jkCompMaxs[j-1, k-1], minMaxes[2].jkCompMaxs[j-1, k-1],
+				# 				 minMaxes[1].kCompMaxs[j-1, k-1], minMaxes[1].kCompMaxs[j+1, k-1]])
+				# if np.argmax(maxs) == 1:
+
+				curV = D[i, j, k]
+				if curV > minMaxes[0].jkCompMaxs[j-1, k-1] and curV > minMaxes[2].jkCompMaxs[j-1, k-1] and \
+				   curV > minMaxes[1].kCompMaxs[j-1, k-1] and curV > minMaxes[1].kCompMaxs[j+1, k-1] and \
+				   curV > D[i, j, k - 1] and curV > D[i, j, k + 1]:
 					candidates.append([i, j, k])
+				else:
+					# mins = np.array(list(D[i, j, k-1:k+2]) +
+					# [minMaxes[0].jkCompMins[j-1, k-1], minMaxes[2].jkCompMins[j-1, k-1],
+					#  minMaxes[1].kCompMins[j-1, k-1], minMaxes[1].kCompMins[j+1, k-1]])
+					# if np.argmin(mins) == 1:
+
+					if curV < minMaxes[0].jkCompMins[j-1, k-1] and curV < minMaxes[2].jkCompMins[j-1, k-1] and \
+					   curV < minMaxes[1].kCompMins[j-1, k-1] and curV < minMaxes[1].kCompMins[j+1, k-1] and \
+					   curV < D[i, j, k - 1] and curV < D[i, j, k + 1]:
+						candidates.append([i, j, k])
+	t2 = datetime.datetime.now()
+
+	if 1:    # Not-optimized variant
+		candidates1 = []
+		for i in iRange:
+			for j in js:
+
+				for k in range(1, D.shape[2]-1):     # For D w*h*5 k in [1, 2, 3]
+					patch = D[i-1:i+2, j-1:j+2, k-1:k+2]
+					if np.argmax(patch) == 13 or np.argmin(patch) == 13:
+						candidates1.append([i, j, k])
+		t = datetime.datetime.now()
+		print("Optimized part time: %.2f s (first: %.5f), non-opt.: %.2f" % \
+			  ((t2 - t0).total_seconds(), (t1 - t0).total_seconds(), (t - t2).total_seconds()))
+
+		assert len(candidates) == len(candidates1)
+		for i in range(len(candidates)):
+			assert candidates[i] == candidates1[i]
 
 	return candidates
 
