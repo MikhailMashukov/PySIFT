@@ -1,0 +1,1 @@
+E:\Programs\Bitnami\djangostack2\python\python.exe main.py --input ..\doll\IMG_1012.JPG
