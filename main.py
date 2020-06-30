@@ -26,14 +26,15 @@ if __name__ == '__main__':
 	pickle.dump(sift_detector.kp_pyr, open('results/%s_kp_pyr.pkl' % args.output_prefix, 'wb'))
 	pickle.dump(sift_detector.feats, open('results/%s_feat_pyr.pkl' % args.output_prefix, 'wb'))
 
-	_, ax = plt.subplots(1, sift_detector.num_octave)
+	_, axs = plt.subplots(2, (sift_detector.num_octave + 1) // 2)
 	
 	for i in range(sift_detector.num_octave):
-		ax[i].imshow(im)
+		ax = axs[i // 2, i % 2]
+		ax.imshow(im)
 
 		scaled_kps = kp_pyr[i] * (2**i)
 		if scaled_kps.shape[0] > 0:
-			ax[i].scatter(scaled_kps[:,0], scaled_kps[:,1], c='r', s=2.5)
+			ax.scatter(scaled_kps[:,0], scaled_kps[:,1], c='r', s=2.5)
 
 	plt.show()
 	pass          # Nice place for breakpoint

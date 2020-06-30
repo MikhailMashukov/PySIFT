@@ -23,12 +23,15 @@ def dot_app(m0, m1):
 # then for triads of these triads
 class Min_maxes_i:
 	def __init__(self, D, i):
-		self.kCompMaxs = np.maximum(np.maximum(D[i, :, :-2], D[i, :, 1:-1]), D[i, :, 2:])
-		self.jkCompMaxs = np.maximum(np.maximum(self.kCompMaxs[:-2, :], self.kCompMaxs[1:-1, :]), \
-									 self.kCompMaxs[2:, :])
-		self.kCompMins = np.minimum(np.minimum(D[i, :, :-2], D[i, :, 1:-1]), D[i, :, 2:])
-		self.jkCompMins = np.minimum(np.minimum(self.kCompMins[:-2, :], self.kCompMins[1:-1, :]), \
-									 self.kCompMins[2:, :])
+		self.d2Maxs = np.maximum(D[i, :, :-2], D[i, :, 2:])                          # Uniting two elements around by k
+		self.kCompMaxs = np.maximum(self.d2Maxs, D[i, :, 1:-1])                      # Adding the 3rd
+		self.k2CompMaxs = np.maximum(self.kCompMaxs[:-2, :], self.kCompMaxs[2:, :])  # Now uniting elem. around by j
+		self.jkCompMaxs = np.maximum(self.k2CompMaxs, self.kCompMaxs[1:-1, :])       # Adding the 3rd
+		# The same for minimums
+		self.d2Mins = np.minimum(D[i, :, :-2], D[i, :, 2:])
+		self.kCompMins = np.minimum(self.d2Mins, D[i, :, 1:-1])
+		self.k2CompMins = np.minimum(self.kCompMins[:-2, :], self.kCompMins[2:, :])
+		self.jkCompMins = np.minimum(self.k2CompMins, self.kCompMins[1:-1, :])
 
 def get_candidate_keypoints(D, w=16):
 	candidates = []
@@ -48,8 +51,8 @@ def get_candidate_keypoints(D, w=16):
 	endI = D.shape[0]-w//2-1
 	js = np.arange(w//2+1, D.shape[1] - w//2 - 1)
 
-	startI = w//2+1 + D.shape[0] * 6 // 16       #d_ Smaller ranges for debugging
-	endI = D.shape[0] * 62 // 160 - w//2 - 1
+	# startI = w//2+1 + D.shape[0] * 6 // 16       #d_ Smaller ranges for debugging
+	# endI = D.shape[0] * 62 // 160 - w//2 - 1
 	# js = np.arange(w//2+1 + D.shape[0] // 4, D.shape[0] * 7 // 16 - w//2 - 1)
 
 	iRange = range(startI, endI)
@@ -66,46 +69,52 @@ def get_candidate_keypoints(D, w=16):
 	# kCompMaxs = np.maximum(kCompMaxs, D[:, :, 2:])
 	# ykCompMaxs = np.maximum(kCompMaxs[:, :-2, :], kCompMaxs[:, 1:-1, :])
 	# ykCompMaxs = np.maximum(ykCompMaxs, kCompMaxs[:, 2:, :])
-	minMaxes = [None, Min_maxes_i(D, startI - 1), Min_maxes_i(D, startI)]
+	minMaxes = [None, Min_maxes_i(D, startI - 1), Min_maxes_i(D, startI)]     # For i-1, i, i+1
 	for i in iRange:
 		minMaxes = minMaxes[1:] + [Min_maxes_i(D, i+1)]
-		# Now uniting min/maxes even more, around each element
+		# Now uniting min/maxes even more
 		jk2CompMaxs = np.maximum(minMaxes[0].jkCompMaxs, minMaxes[2].jkCompMaxs)
-		k2CompMaxs = np.maximum(minMaxes[1].kCompMaxs[:-2, :], minMaxes[1].kCompMaxs[2:, :])
-		comp4Maxs = np.maximum(jk2CompMaxs, k2CompMaxs)
-		d2Maxs = np.maximum(D[i, :, :-2], D[i, :, 2:])
+		otherMaxs = np.maximum(np.maximum(jk2CompMaxs, minMaxes[1].k2CompMaxs), minMaxes[1].d2Maxs[1:-1])
+			# For comp4Maxs[j-1, k-1] we need d2Maxs[j, k-1]:
 		jk2CompMins = np.minimum(minMaxes[0].jkCompMins, minMaxes[2].jkCompMins)
-		k2CompMins = np.minimum(minMaxes[1].kCompMins[:-2, :], minMaxes[1].kCompMins[2:, :])
-		comp4Mins = np.minimum(jk2CompMins, k2CompMins)
-		d2Mins = np.minimum(D[i, :, :-2], D[i, :, 2:])
+		otherMins = np.minimum(np.minimum(jk2CompMins, minMaxes[1].k2CompMins), minMaxes[1].d2Mins[1:-1])
+
 		if i == startI:
 			t1 = datetime.datetime.now()
 			print("First arrays calc: %.5f s" % \
 				  ((t1 - t0).total_seconds()))
 
-		for j in js:
-			for k in range(1, D.shape[2]-1):
-				# maxs = np.array(list(D[i, j, k-1:k+2]) +        # 2x slower than non-optimized argmax(patch), at least under debugger
-				# 				[minMaxes[0].jkCompMaxs[j-1, k-1], minMaxes[2].jkCompMaxs[j-1, k-1],
-				# 				 minMaxes[1].kCompMaxs[j-1, k-1], minMaxes[1].kCompMaxs[j+1, k-1]])
-				# if np.argmax(maxs) == 1:
+		if 0:
+			# Faster variant
+			for j in js:
+				for k in range(1, D.shape[2]-1):
+					# maxs = np.array(list(D[i, j, k-1:k+2]) +        # 2x slower than non-optimized argmax(patch), at least under debugger
+					# 				[minMaxes[0].jkCompMaxs[j-1, k-1], minMaxes[2].jkCompMaxs[j-1, k-1],
+					# 				 minMaxes[1].kCompMaxs[j-1, k-1], minMaxes[1].kCompMaxs[j+1, k-1]])
+					# if np.argmax(maxs) == 1:
 
-				curV = D[i, j, k]
-				if curV > comp4Maxs[j-1, k-1] and \
-				   curV > d2Maxs[j, k-1]:
-					candidates.append([i, j, k])
-				else:
-					# mins = np.array(list(D[i, j, k-1:k+2]) +
-					# [minMaxes[0].jkCompMins[j-1, k-1], minMaxes[2].jkCompMins[j-1, k-1],
-					#  minMaxes[1].kCompMins[j-1, k-1], minMaxes[1].kCompMins[j+1, k-1]])
-					# if np.argmin(mins) == 1:
-
-					if curV < comp4Mins[j-1, k-1] and \
-					   curV < d2Mins[j, k-1]:
+					curV = D[i, j, k]
+					if curV > otherMaxs[j-1, k-1]:
 						candidates.append([i, j, k])
+					else:
+						if curV < otherMins[j-1, k-1]:
+							candidates.append([i, j, k])
+
+		# Fastest variant
+		mask = np.logical_or(D[i, 1:-1, 1:-1] > otherMaxs, D[i, 1:-1, 1:-1] < otherMins)
+		mask = mask[w//2 : -w//2, :]
+			# Doesn't take js range from above
+		coords = np.argwhere(mask)
+		coords[:, 0] += w//2 + 1
+		coords[:, 1] += 1
+		if coords.shape[0] > 0:
+			candidates.append(np.concatenate([np.full((coords.shape[0], 1), i), coords], axis=1))
+
+	if candidates:
+		candidates = np.concatenate(candidates)
 	t2 = datetime.datetime.now()
 
-	if 1:    # Not-optimized variant
+	if 0:    # Not-optimized variant
 		candidates1 = []
 		for i in iRange:
 			for j in js:
@@ -115,14 +124,14 @@ def get_candidate_keypoints(D, w=16):
 					if np.argmax(patch) == 13 or np.argmin(patch) == 13:
 						candidates1.append([i, j, k])
 		t = datetime.datetime.now()
-		print("Optimized part time: %.2f s, non-opt.: %.2f" % \
+		print("Optimized candidates search time: %.2f s, non-opt.: %.2f" % \
 			  ((t2 - t0).total_seconds(), (t - t2).total_seconds()))
 
 		assert len(candidates) == len(candidates1)
 		for i in range(len(candidates)):
-			assert candidates[i] == candidates1[i]
+			assert np.sum(candidates[i] - candidates1[i]) == 0
 	else:
-		print("Optimized part time: %.2f s" % \
+		print("Optimized candidates search time: %.2f s" % \
 			  ((t2 - t0).total_seconds()))
 
 	return candidates
@@ -177,7 +186,7 @@ def calc_contrasts(D, candidates):
 def find_keypoints_for_DoG_octave(D, R_th, t_c, w, min_keypoints):
 	candidates = get_candidate_keypoints(D, w)
 	#print('%d candidate keypoints found' % len(candidates))
-	if not candidates:
+	if len(candidates) == 0:
 		print('D %s: %d candidates' % \
 		  	  (D.shape, len(candidates)))
 		return np.empty((0, 3))
@@ -220,26 +229,28 @@ def find_keypoints_for_DoG_octave(D, R_th, t_c, w, min_keypoints):
 
 	if len(filteredInds) < min_keypoints:
 		sortedByContrastInds = vals[0].argsort(axis=0)
-		if 1:
-			import matplotlib
-			import matplotlib.pyplot as plt
+		filteredInds = sortedByContrastInds[-min_keypoints:]
 
+		if 1:
 			print('Top candidates contrasts: %s' % (str(list(reversed(vals[0][sortedByContrastInds[-5:]])))))
 			i = 5
 			while i < len(sortedByContrastInds):
 				print('Candidates contrast %d: %f' % (i, vals[0][sortedByContrastInds[-i]]))
 				i *= 2
-			norm = matplotlib.colors.Normalize(vmin=0, vmax=vals[0][sortedByContrastInds[-1]] / 2, clip=False)
-			plt.scatter(vals[1], vals[2], c=vals[0],
-						cmap='inferno', norm=norm, s=4)
-			plt.colorbar()
-
-			# ax = plt.subplot()
-			plt.show()
-
-		filteredInds = sortedByContrastInds[-min_keypoints:]
 	else:
 		filteredInds = filteredInds
+
+	if 1:
+		import matplotlib
+		import matplotlib.pyplot as plt
+
+		norm = matplotlib.colors.Normalize(vmin=0, vmax=np.max(vals[0]) / 1.5, clip=False)
+		plt.scatter(vals[1], vals[2], c=vals[0],
+					cmap='inferno', norm=norm, s=2)
+		plt.colorbar()
+
+		# ax = plt.subplot()
+		plt.show()
 
 	# Vals: abs(contrast), x, y, offset, J, H, s
 	Hs = vals[5]
