@@ -54,7 +54,8 @@ def assign_orientation(kps, octave, num_bins=36):
         L = octave[...,s]
         hist = np.zeros(num_bins, dtype=np.float32)
 
-        for oy in range(-w, w+1):
+        try:
+          for oy in range(-w, w+1):
             for ox in range(-w, w+1):
                 x, y = cx+ox, cy+oy
                 
@@ -66,7 +67,10 @@ def assign_orientation(kps, octave, num_bins=36):
 
                 bin = quantize_orientation(theta, num_bins)
                 hist[bin] += weight
-
+        except:
+            print('oy %d, ox %d, w %d, kernel %s' %
+                  (oy, ox, w, str(kernel.shape)))
+            raise
         max_bin = np.argmax(hist)
         new_kps.append([kp[0], kp[1], kp[2], fit_parabola(hist, max_bin, bin_width)])
 

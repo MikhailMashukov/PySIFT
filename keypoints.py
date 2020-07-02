@@ -240,7 +240,7 @@ def find_keypoints_for_DoG_octave(D, R_th, t_c, w, min_keypoints):
 	else:
 		filteredInds = filteredInds
 
-	if 1:
+	if D.shape[0] > 2500:
 		import matplotlib
 		import matplotlib.pyplot as plt
 

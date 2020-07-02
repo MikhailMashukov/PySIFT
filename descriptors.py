@@ -30,8 +30,9 @@ def get_histogram_for_subregion(m, theta, num_bin, reference_angle, bin_width, s
     c = subregion_w/2 - .5
 
     for i, (mag, angle) in enumerate(zip(m, theta)):
-        angle = (angle-reference_angle) % 360
-        binno = quantize_orientation(angle, num_bin)
+        # assert angle > reference_angle
+        angle = (angle-reference_angle) % 360            #t_ 360 +
+        binno = quantize_orientation(angle, num_bin)     #t_ bin_width
         vote = mag
 
         # binno*bin_width is the start angle of the histogram bin
@@ -70,7 +71,7 @@ def get_local_descriptors(kps, octave, w=16, num_subregion=4, num_bin=8):
             else: kernel = kernel[:dx.shape[0]]
         if dx.shape[1] < w+1:
             if l == 0: kernel = kernel[kernel.shape[1]-dx.shape[1]:]
-            else: kernel = kernel[:dx.shape[1]]
+            else: kernel = kernel[:dx.shape[1]]                          #t_ Shouldn't it be kernel[:, :dx.shape[1]] here and in 3 other lines near
 
         if dy.shape[0] < w+1:
             if t == 0: kernel = kernel[kernel.shape[0]-dy.shape[0]:]

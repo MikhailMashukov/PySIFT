@@ -86,7 +86,7 @@ def extract_or_load_features(im, kp_fname, feat_fname):
         return kps, feats
 
     detector = SIFT(im)
-    _ = detector.get_features()
+    _ = detector.calc_features()
     pickle.dump(detector.kp_pyr, open(kp_fname, 'wb'))
     pickle.dump(detector.feats, open(feat_fname, 'wb'))
     return np.concatenate(detector.kp_pyr, axis=0), np.concatenate(detector.feats, axis=0)

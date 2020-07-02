@@ -1,3 +1,6 @@
+import array
+import math
+import numpy as np
 from skimage.color import rgb2gray
 from scipy.ndimage.filters import convolve
 
@@ -20,7 +23,9 @@ class SIFT(object):
         self.w = w
         self.min_keypoints = min_keypoints
 
-    def get_features(self):
+        self.kp_pyr = None
+
+    def calc_features(self):
         gaussian_pyr = generate_gaussian_pyramid(self.im, self.num_octave, self.s, self.sigma)
         DoG_pyr = generate_DoG_pyramid(gaussian_pyr)
         kp_pyr = get_keypoints(DoG_pyr, self.R_th, self.t_c, self.w, self.min_keypoints)
@@ -37,3 +42,43 @@ class SIFT(object):
         self.DoG_pyr = DoG_pyr
 
         return feats
+
+    def writeFeaturesInMeshroomFormat(self, fileName):
+        if self.kp_pyr is None:
+            self.calc_features()
+        features = self.kp_pyr[0]       # x, y, s, orientation (0-360), in Meshroom/AliceVision terms these are features
+        scale_mult = 1
+        for feat2 in self.kp_pyr[1:]:
+            scale_mult *= 2
+            newFeat = np.copy(feat2)
+            newFeat[:, 2] *= scale_mult
+            features = np.concatenate([features, newFeat], axis=0)
+        features[features[:, 3] < 0, 3] += 360
+        # assert np.sum(np.logical_or(features[:, 3] < 0, features[:, 3] >= 360)) == 0
+        features[:, 3] *= math.pi / 180
+
+        with open(fileName, 'w') as outF:
+            for feat in features:
+                outF.write('%.3f %.3f %8f %.6f\n' % tuple(feat))
+
+    def writeDescriptorsInMeshroomFormat(self, fileName):
+        if self.kp_pyr is None:
+            self.calc_features()
+        descs = np.concatenate(self.feats, axis=0)
+        ucharDescs = np.array(descs * 512, dtype=np.uint8)
+
+        with open(fileName, 'wb') as outF:
+            # data = array.array('B')  # create array of bytes.
+            # data.append(len(descs).to_bytes(4, byteorder='little', signed=False))
+            ucharDescs.tofile(outF)
+            # descs.tofile(outF)
+        with open(fileName, 'wb') as outF:
+            # data = array.array('B')  # create array of bytes.
+            # data.append(len(descs).to_bytes(4, byteorder='little', signed=False))
+            outF.write(len(descs).to_bytes(8, byteorder='little', signed=False))
+            ucharDescs.tofile(outF)
+
+            # for desc in descs:
+            #     np.save(outF, desc)
+
+
